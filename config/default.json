@@ -1,0 +1,24 @@
+{
+  "window_title": "Doudizhu",
+  "capture_fps": 20,
+  "models": {
+    "card_detector_path": "models/yolov8_cards.pt",
+    "policy_model_path": "models/perfectdou_actor.onnx"
+  },
+  "cv": {
+    "confidence_threshold": 0.65,
+    "nms_iou_threshold": 0.45
+  },
+  "rl": {
+    "top_n": 3
+  },
+  "ui": {
+    "overlay_offset_x": 20,
+    "overlay_offset_y": 20,
+    "overlay_width": 360,
+    "overlay_height": 140
+  },
+  "pipeline": {
+    "frame_budget_ms": 50
+  }
+}

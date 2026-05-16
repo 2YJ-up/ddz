@@ -1,0 +1,1 @@
+"""Doudizhu Master Assistant package."""
