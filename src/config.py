@@ -34,6 +34,8 @@ class StateConfig:
     landlord_seat: PlayerSeat
     first_turn: PlayerSeat
     bootstrap_from_self_detections: bool
+    min_self_cards_to_start: int
+    bootstrap_stable_frames: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,7 @@ class UiConfig:
     overlay_width: int
     overlay_height: int
     enable_window: bool
+    place_outside_capture: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +104,8 @@ def load_config(config_path: str | Path = "config/default.json") -> AppConfig:
             landlord_seat=PlayerSeat(str(state_data["landlord_seat"])),
             first_turn=PlayerSeat(str(state_data["first_turn"])),
             bootstrap_from_self_detections=bool(state_data["bootstrap_from_self_detections"]),
+            min_self_cards_to_start=int(state_data.get("min_self_cards_to_start", 1)),
+            bootstrap_stable_frames=int(state_data.get("bootstrap_stable_frames", 1)),
         ),
         ui=UiConfig(
             overlay_offset_x=int(ui_data["overlay_offset_x"]),
@@ -108,6 +113,7 @@ def load_config(config_path: str | Path = "config/default.json") -> AppConfig:
             overlay_width=int(ui_data["overlay_width"]),
             overlay_height=int(ui_data["overlay_height"]),
             enable_window=bool(ui_data.get("enable_window", False)),
+            place_outside_capture=bool(ui_data.get("place_outside_capture", True)),
         ),
         pipeline=PipelineConfig(frame_budget_ms=int(pipeline_data["frame_budget_ms"])),
     )

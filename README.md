@@ -42,15 +42,30 @@ The repository does not include those binary assets.
 python -m pytest
 ```
 
-## Run One Pipeline Frame
+## Run
 
 ```powershell
 python run_assistant.py
 ```
 
-The default configuration keeps the overlay window disabled and safely returns
-an empty frame when the game window is not found. To enable the topmost overlay,
-set `ui.enable_window` to `true` in `config/default.json`.
+The default command runs the continuous assistant loop and prints one readable
+status line per second. Press `Ctrl+C` to stop it.
+
+Useful diagnostics:
+
+```powershell
+python run_assistant.py --health
+python run_assistant.py --debug-windows
+python run_assistant.py --once
+python run_assistant.py --bring-window-front
+python run_assistant.py --save-frame debug_capture.png
+python run_assistant.py --save-detections debug_detect.png
+```
+
+The screen capturer uses visible desktop pixels from the MuMu client area, so
+keep the game window visible and uncovered while the assistant is running.
+The overlay is topmost and is automatically clamped back onto the visible
+screen if the game window is too wide for an outside panel.
 
 ## Model Assets
 

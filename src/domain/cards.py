@@ -87,6 +87,8 @@ FULL_DECK_RANK_COUNTS: Mapping[CardRank, int] = {
 }
 
 RANK_LABELS: Mapping[str, CardRank] = {
+    "0": CardRank.SMALL_JOKER,
+    "1": CardRank.ACE,
     "3": CardRank.THREE,
     "three": CardRank.THREE,
     "4": CardRank.FOUR,
@@ -110,6 +112,7 @@ RANK_LABELS: Mapping[str, CardRank] = {
     "queen": CardRank.QUEEN,
     "k": CardRank.KING,
     "king": CardRank.KING,
+    "13": CardRank.KING,
     "a": CardRank.ACE,
     "ace": CardRank.ACE,
     "2": CardRank.TWO,

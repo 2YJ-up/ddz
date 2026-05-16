@@ -47,6 +47,14 @@ class CardDetector:
         result = self._model_loaded
         return result
 
+    def backend_name(self) -> str:
+        result = self._backend
+        return result
+
+    def class_names(self) -> Mapping[int, str]:
+        result = dict(self._class_names)
+        return result
+
     def detect(self, frame: FrameBuffer) -> tuple[CardDetection, ...]:
         detections: tuple[CardDetection, ...] = ()
         can_detect = self._model_loaded and frame.width > 0 and frame.height > 0
@@ -236,7 +244,15 @@ class CardDetector:
         center_y = bbox.y + bbox.height / 2.0
         seat = PlayerSeat.SELF
         if frame.height > 0 and center_y < frame.height * 0.62:
-            if frame.width > 0 and center_x < frame.width / 2.0:
+            is_table_card = (
+                frame.width > 0
+                and center_y >= frame.height * 0.18
+                and center_x >= frame.width * 0.25
+                and center_x <= frame.width * 0.75
+            )
+            if is_table_card:
+                seat = PlayerSeat.TABLE
+            elif frame.width > 0 and center_x < frame.width / 2.0:
                 seat = PlayerSeat.LEFT_OPPONENT
             else:
                 seat = PlayerSeat.RIGHT_OPPONENT
@@ -250,24 +266,25 @@ class CardDetector:
 
     def _merge_model_names(self, class_names: Mapping[int, str]) -> None:
         for class_index, label in class_names.items():
-            self._class_names[int(class_index)] = str(label)
+            normalized_index = int(class_index)
+            if normalized_index not in self._class_names:
+                self._class_names[normalized_index] = str(label)
 
     def _default_class_names(self) -> dict[int, str]:
         names = {
-            0: "3",
-            1: "4",
-            2: "5",
-            3: "6",
-            4: "7",
-            5: "8",
-            6: "9",
-            7: "10",
-            8: "J",
-            9: "Q",
-            10: "K",
-            11: "A",
-            12: "2",
-            13: "small_joker",
-            14: "big_joker",
+            0: "small_joker",
+            1: "A",
+            2: "10",
+            3: "J",
+            4: "Q",
+            5: "K",
+            6: "2",
+            7: "3",
+            8: "4",
+            9: "5",
+            10: "6",
+            11: "7",
+            12: "8",
+            13: "9",
         }
         return names

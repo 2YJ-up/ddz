@@ -6,6 +6,7 @@ from typing import Any
 
 import mss
 import numpy as np
+import win32con
 import win32gui
 
 from src.domain.actions import FrameBuffer, WindowRect
@@ -22,7 +23,7 @@ class ScreenCapture:
         self._capture_device = self._create_capture_device()
 
     def capture(self) -> FrameBuffer:
-        hwnd = win32gui.FindWindow(None, self.config.window_title)
+        hwnd = self._find_window_handle()
         timestamp_ms = self._timestamp_ms()
         window_rect = self._blank_window_rect()
         pixels = b""
@@ -52,8 +53,43 @@ class ScreenCapture:
         )
         return frame
 
+    def list_visible_window_titles(self) -> tuple[str, ...]:
+        titles: list[str] = []
+
+        def collect_title(hwnd: int, _: object) -> bool:
+            if win32gui.IsWindowVisible(hwnd) != 0:
+                title = win32gui.GetWindowText(hwnd).strip()
+                if title != "":
+                    titles.append(title)
+            return True
+
+        win32gui.EnumWindows(collect_title, None)
+        result = tuple(titles)
+        return result
+
     def close(self) -> None:
         self._capture_device.close()
+
+    def bring_window_to_front(self) -> bool:
+        hwnd = self._find_window_handle()
+        brought_to_front = False
+        if hwnd != 0:
+            try:
+                flags = win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, flags)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, flags)
+                try:
+                    win32gui.SetForegroundWindow(hwnd)
+                except Exception:
+                    self._ignore_foreground_denial()
+                brought_to_front = True
+            except Exception:
+                brought_to_front = False
+        return brought_to_front
+
+    def _ignore_foreground_denial(self) -> None:
+        return None
 
     def _get_client_window_rect(self, hwnd: int) -> WindowRect:
         rect = self._blank_window_rect()
@@ -119,3 +155,30 @@ class ScreenCapture:
         factory = getattr(mss, "MSS", mss.mss)
         capture_device = factory()
         return capture_device
+
+    def _find_window_handle(self) -> int:
+        exact_hwnd = win32gui.FindWindow(None, self.config.window_title)
+        selected_hwnd = exact_hwnd
+        if selected_hwnd == 0:
+            selected_hwnd = self._find_window_handle_by_title_fragment()
+        return selected_hwnd
+
+    def _find_window_handle_by_title_fragment(self) -> int:
+        selected_hwnd = 0
+        target = self.config.window_title.casefold()
+
+        def inspect_window(hwnd: int, _: object) -> bool:
+            nonlocal selected_hwnd
+            title = win32gui.GetWindowText(hwnd).strip()
+            is_candidate = (
+                selected_hwnd == 0
+                and target != ""
+                and win32gui.IsWindowVisible(hwnd) != 0
+                and target in title.casefold()
+            )
+            if is_candidate:
+                selected_hwnd = hwnd
+            return True
+
+        win32gui.EnumWindows(inspect_window, None)
+        return selected_hwnd

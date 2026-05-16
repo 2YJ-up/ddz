@@ -105,8 +105,12 @@ class StateManager:
     def derive_known_unseen_counts(self) -> dict[CardRank, int]:
         self._require_started()
         counts = dict(FULL_DECK_RANK_COUNTS)
-        for entry in self._action_log:
-            self._subtract_ranks(counts, entry.action.ranks)
+        self_counts = self.derive_self_rank_counts()
+        public_counts = self.derive_public_played_counts()
+        self._subtract_count_mapping(counts, self_counts)
+        self._subtract_count_mapping(counts, public_counts)
+        if self._initial_deal.landlord_seat is not PlayerSeat.SELF:
+            self._subtract_ranks(counts, self._initial_deal.landlord_cards)
         result = counts
         return result
 
@@ -158,6 +162,24 @@ class StateManager:
         )
         return view
 
+    def build_waiting_view(self) -> GameStateView:
+        view = GameStateView(
+            current_turn=self._current_turn,
+            landlord_seat=self._initial_deal.landlord_seat,
+            action_log=tuple(self._action_log),
+            current_trick_action=None,
+            self_rank_counts={},
+            public_played_counts={},
+            known_unseen_counts=dict(FULL_DECK_RANK_COUNTS),
+            hand_counts={
+                PlayerSeat.SELF: 0,
+                PlayerSeat.LEFT_OPPONENT: 0,
+                PlayerSeat.RIGHT_OPPONENT: 0,
+            },
+            state_matrix=tuple(1 for _ in range(54)),
+        )
+        return view
+
     def reset(self) -> None:
         self._has_initial_deal = False
         self._initial_deal = InitialDeal(
@@ -196,6 +218,13 @@ class StateManager:
             next_value = counts[rank] - amount
             if next_value < 0:
                 raise ValueError("self rank count became negative during state derivation")
+            counts[rank] = next_value
+
+    def _subtract_count_mapping(self, counts: dict[CardRank, int], rank_counts: Mapping[CardRank, int]) -> None:
+        for rank, amount in rank_counts.items():
+            next_value = counts[rank] - amount
+            if next_value < 0:
+                raise ValueError("known unseen rank count became negative during state derivation")
             counts[rank] = next_value
 
     def export_base_truths(self) -> Mapping[str, object]:

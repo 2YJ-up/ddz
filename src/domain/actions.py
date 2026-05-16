@@ -11,6 +11,7 @@ class PlayerSeat(str, Enum):
     SELF = "self"
     LEFT_OPPONENT = "left_opponent"
     RIGHT_OPPONENT = "right_opponent"
+    TABLE = "table"
 
 
 NEXT_SEAT: Mapping[PlayerSeat, PlayerSeat] = {
@@ -109,6 +110,9 @@ class ActionRecommendation:
     probability: float
     expected_win_rate: float
     reason_code: str
+    reason_text: str = ""
+    risk_text: str = ""
+    action_label: str = ""
 
 
 @dataclass(frozen=True, slots=True)
