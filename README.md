@@ -41,3 +41,34 @@ The repository does not include those binary assets.
 ```powershell
 python -m pytest
 ```
+
+## Run One Pipeline Frame
+
+```powershell
+python run_assistant.py
+```
+
+The default configuration keeps the overlay window disabled and safely returns
+an empty frame when the game window is not found. To enable the topmost overlay,
+set `ui.enable_window` to `true` in `config/default.json`.
+
+## Model Assets
+
+Place model files under `models/`:
+
+```text
+models/yolov8_cards.pt
+models/perfectdou_actor.onnx
+```
+
+`CardDetector` supports Ultralytics `.pt` models and OpenCV DNN `.onnx` card
+detectors. `RlForwardService` supports ONNX Runtime for the policy model and
+falls back to legal-action heuristic scoring when the model file is absent.
+
+The pipeline keeps module ownership strict:
+
+- `IO_READ`: window capture only.
+- `CV_INFERENCE`: frame-to-card detections only.
+- `STATE_NORMALIZATION`: base truths and derived state views.
+- `RL_FORWARD`: legal action scoring and recommendation.
+- `UI_RENDER`: overlay frame/window rendering only.

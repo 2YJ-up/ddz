@@ -36,6 +36,10 @@ class StateManager:
         self._action_log = []
         self._has_initial_deal = True
 
+    def is_started(self) -> bool:
+        result = self._has_initial_deal
+        return result
+
     def append_action(self, action: CardAction) -> None:
         self._require_started()
         previous_action = self.derive_current_trick_action()
@@ -87,6 +91,17 @@ class StateManager:
         result = dict(counts)
         return result
 
+    def derive_self_rank_counts(self) -> dict[CardRank, int]:
+        self._require_started()
+        counts: Counter[CardRank] = Counter(self._initial_deal.self_cards)
+        if self._initial_deal.landlord_seat is PlayerSeat.SELF:
+            counts.update(self._initial_deal.landlord_cards)
+        for entry in self._action_log:
+            if entry.action.actor_seat is PlayerSeat.SELF:
+                self._subtract_counter(counts, entry.action.ranks)
+        result = dict(counts)
+        return result
+
     def derive_known_unseen_counts(self) -> dict[CardRank, int]:
         self._require_started()
         counts = dict(FULL_DECK_RANK_COUNTS)
@@ -135,6 +150,7 @@ class StateManager:
             landlord_seat=self._initial_deal.landlord_seat,
             action_log=tuple(self._action_log),
             current_trick_action=self.derive_current_trick_action(),
+            self_rank_counts=self.derive_self_rank_counts(),
             public_played_counts=self.derive_public_played_counts(),
             known_unseen_counts=self.derive_known_unseen_counts(),
             hand_counts=self.derive_hand_counts(),
@@ -172,6 +188,14 @@ class StateManager:
             next_value = counts[rank] - amount
             if next_value < 0:
                 raise ValueError("rank count became negative during state derivation")
+            counts[rank] = next_value
+
+    def _subtract_counter(self, counts: Counter[CardRank], ranks: tuple[CardRank, ...]) -> None:
+        local_counts: Counter[CardRank] = Counter(ranks)
+        for rank, amount in local_counts.items():
+            next_value = counts[rank] - amount
+            if next_value < 0:
+                raise ValueError("self rank count became negative during state derivation")
             counts[rank] = next_value
 
     def export_base_truths(self) -> Mapping[str, object]:

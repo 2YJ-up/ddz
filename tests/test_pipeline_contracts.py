@@ -55,6 +55,7 @@ class FakeStateNormalizer:
             landlord_seat=PlayerSeat.SELF,
             action_log=(),
             current_trick_action=None,
+            self_rank_counts={},
             public_played_counts={},
             known_unseen_counts={},
             hand_counts={PlayerSeat.SELF: 0, PlayerSeat.LEFT_OPPONENT: 0, PlayerSeat.RIGHT_OPPONENT: 0},

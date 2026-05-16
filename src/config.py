@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from src.domain.actions import PlayerSeat
+
 
 @dataclass(frozen=True, slots=True)
 class ModelConfig:
@@ -16,11 +18,22 @@ class ModelConfig:
 class CvConfig:
     confidence_threshold: float
     nms_iou_threshold: float
+    input_size: int
+    class_names: Mapping[int, str]
 
 
 @dataclass(frozen=True, slots=True)
 class RlConfig:
     top_n: int
+    input_name: str
+    output_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class StateConfig:
+    landlord_seat: PlayerSeat
+    first_turn: PlayerSeat
+    bootstrap_from_self_detections: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +42,7 @@ class UiConfig:
     overlay_offset_y: int
     overlay_width: int
     overlay_height: int
+    enable_window: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +57,7 @@ class AppConfig:
     models: ModelConfig
     cv: CvConfig
     rl: RlConfig
+    state: StateConfig
     ui: UiConfig
     pipeline: PipelineConfig
 
@@ -59,8 +74,10 @@ def load_config(config_path: str | Path = "config/default.json") -> AppConfig:
     model_data = raw_data["models"]
     cv_data = raw_data["cv"]
     rl_data = raw_data["rl"]
+    state_data = raw_data["state"]
     ui_data = raw_data["ui"]
     pipeline_data = raw_data["pipeline"]
+    class_names = {int(key): str(value) for key, value in cv_data.get("class_names", {}).items()}
 
     config = AppConfig(
         window_title=str(raw_data["window_title"]),
@@ -72,13 +89,25 @@ def load_config(config_path: str | Path = "config/default.json") -> AppConfig:
         cv=CvConfig(
             confidence_threshold=float(cv_data["confidence_threshold"]),
             nms_iou_threshold=float(cv_data["nms_iou_threshold"]),
+            input_size=int(cv_data.get("input_size", 640)),
+            class_names=class_names,
         ),
-        rl=RlConfig(top_n=int(rl_data["top_n"])),
+        rl=RlConfig(
+            top_n=int(rl_data["top_n"]),
+            input_name=str(rl_data.get("input_name", "")),
+            output_name=str(rl_data.get("output_name", "")),
+        ),
+        state=StateConfig(
+            landlord_seat=PlayerSeat(str(state_data["landlord_seat"])),
+            first_turn=PlayerSeat(str(state_data["first_turn"])),
+            bootstrap_from_self_detections=bool(state_data["bootstrap_from_self_detections"]),
+        ),
         ui=UiConfig(
             overlay_offset_x=int(ui_data["overlay_offset_x"]),
             overlay_offset_y=int(ui_data["overlay_offset_y"]),
             overlay_width=int(ui_data["overlay_width"]),
             overlay_height=int(ui_data["overlay_height"]),
+            enable_window=bool(ui_data.get("enable_window", False)),
         ),
         pipeline=PipelineConfig(frame_budget_ms=int(pipeline_data["frame_budget_ms"])),
     )

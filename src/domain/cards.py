@@ -86,6 +86,44 @@ FULL_DECK_RANK_COUNTS: Mapping[CardRank, int] = {
     CardRank.BIG_JOKER: 1,
 }
 
+RANK_LABELS: Mapping[str, CardRank] = {
+    "3": CardRank.THREE,
+    "three": CardRank.THREE,
+    "4": CardRank.FOUR,
+    "four": CardRank.FOUR,
+    "5": CardRank.FIVE,
+    "five": CardRank.FIVE,
+    "6": CardRank.SIX,
+    "six": CardRank.SIX,
+    "7": CardRank.SEVEN,
+    "seven": CardRank.SEVEN,
+    "8": CardRank.EIGHT,
+    "eight": CardRank.EIGHT,
+    "9": CardRank.NINE,
+    "nine": CardRank.NINE,
+    "10": CardRank.TEN,
+    "t": CardRank.TEN,
+    "ten": CardRank.TEN,
+    "j": CardRank.JACK,
+    "jack": CardRank.JACK,
+    "q": CardRank.QUEEN,
+    "queen": CardRank.QUEEN,
+    "k": CardRank.KING,
+    "king": CardRank.KING,
+    "a": CardRank.ACE,
+    "ace": CardRank.ACE,
+    "2": CardRank.TWO,
+    "two": CardRank.TWO,
+    "sj": CardRank.SMALL_JOKER,
+    "small_joker": CardRank.SMALL_JOKER,
+    "smalljoker": CardRank.SMALL_JOKER,
+    "joker_small": CardRank.SMALL_JOKER,
+    "bj": CardRank.BIG_JOKER,
+    "big_joker": CardRank.BIG_JOKER,
+    "bigjoker": CardRank.BIG_JOKER,
+    "joker_big": CardRank.BIG_JOKER,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Card:
@@ -144,3 +182,14 @@ def normalize_ranks(ranks: Iterable[CardRank]) -> tuple[CardRank, ...]:
 def count_ranks(ranks: Iterable[CardRank]) -> dict[CardRank, int]:
     counts = dict(Counter(tuple(ranks)))
     return counts
+
+
+def rank_from_label(label: str) -> CardRank | None:
+    normalized = label.strip().lower().replace("-", "_").replace(" ", "_")
+    parts = tuple(part for part in normalized.split("_") if part)
+    rank = RANK_LABELS.get(normalized)
+    index = 0
+    while rank is None and index < len(parts):
+        rank = RANK_LABELS.get(parts[index])
+        index += 1
+    return rank

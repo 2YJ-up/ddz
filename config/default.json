@@ -7,16 +7,42 @@
   },
   "cv": {
     "confidence_threshold": 0.65,
-    "nms_iou_threshold": 0.45
+    "nms_iou_threshold": 0.45,
+    "input_size": 640,
+    "class_names": {
+      "0": "3",
+      "1": "4",
+      "2": "5",
+      "3": "6",
+      "4": "7",
+      "5": "8",
+      "6": "9",
+      "7": "10",
+      "8": "J",
+      "9": "Q",
+      "10": "K",
+      "11": "A",
+      "12": "2",
+      "13": "small_joker",
+      "14": "big_joker"
+    }
   },
   "rl": {
-    "top_n": 3
+    "top_n": 3,
+    "input_name": "",
+    "output_name": ""
+  },
+  "state": {
+    "landlord_seat": "self",
+    "first_turn": "self",
+    "bootstrap_from_self_detections": true
   },
   "ui": {
     "overlay_offset_x": 20,
     "overlay_offset_y": 20,
     "overlay_width": 360,
-    "overlay_height": 140
+    "overlay_height": 140,
+    "enable_window": false
   },
   "pipeline": {
     "frame_budget_ms": 50

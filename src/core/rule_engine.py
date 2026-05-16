@@ -93,6 +93,7 @@ class RuleEngine:
         candidates.extend(self._enumerate_triple_attachments(hand_counts, actor_seat))
         candidates.extend(self._enumerate_sequences(hand_counts, actor_seat))
         candidates.extend(self._enumerate_airplanes(hand_counts, actor_seat))
+        candidates.extend(self._enumerate_four_attachments(hand_counts, actor_seat))
         candidates.extend(self._enumerate_rocket(hand_counts, actor_seat))
 
         legal_actions: list[CardAction] = []
@@ -344,6 +345,28 @@ class RuleEngine:
                     actions.extend(self._build_airplane_attachments(hand_counts, actor_seat, chain))
                 end_index += 1
             start_index += 1
+        result = tuple(actions)
+        return result
+
+    def _enumerate_four_attachments(
+        self,
+        hand_counts: Mapping[CardRank, int],
+        actor_seat: PlayerSeat,
+    ) -> tuple[CardAction, ...]:
+        actions: list[CardAction] = []
+        ranks = tuple(sorted(hand_counts.keys(), key=int))
+        for four_rank in ranks:
+            if hand_counts[four_rank] >= 4:
+                base = (four_rank, four_rank, four_rank, four_rank)
+                single_candidates = tuple(rank for rank in ranks if rank != four_rank and hand_counts[rank] >= 1)
+                pair_candidates = tuple(rank for rank in ranks if rank != four_rank and hand_counts[rank] >= 2)
+                for singles in combinations(single_candidates, 2):
+                    actions.append(CardAction(actor_seat=actor_seat, ranks=base + tuple(singles)))
+                for pairs in combinations(pair_candidates, 2):
+                    pair_ranks: list[CardRank] = []
+                    for pair_rank in pairs:
+                        pair_ranks.extend((pair_rank, pair_rank))
+                    actions.append(CardAction(actor_seat=actor_seat, ranks=base + tuple(pair_ranks)))
         result = tuple(actions)
         return result
 

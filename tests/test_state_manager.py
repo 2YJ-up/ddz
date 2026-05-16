@@ -46,6 +46,7 @@ def test_state_manager_replays_base_truths_into_view() -> None:
 
     assert view.current_turn is PlayerSeat.SELF
     assert view.current_trick_action is None
+    assert view.self_rank_counts[CardRank.THREE] == 1
     assert view.public_played_counts[CardRank.THREE] == 1
     assert view.known_unseen_counts[CardRank.THREE] == 3
     assert view.hand_counts[PlayerSeat.SELF] == 19

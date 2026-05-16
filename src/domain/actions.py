@@ -96,6 +96,7 @@ class GameStateView:
     landlord_seat: PlayerSeat
     action_log: tuple[ActionLogEntry, ...]
     current_trick_action: ClassifiedAction | None
+    self_rank_counts: Mapping[CardRank, int]
     public_played_counts: Mapping[CardRank, int]
     known_unseen_counts: Mapping[CardRank, int]
     hand_counts: Mapping[PlayerSeat, int]
