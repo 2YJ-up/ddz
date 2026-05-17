@@ -87,3 +87,27 @@ The pipeline keeps module ownership strict:
 - `STATE_NORMALIZATION`: base truths and derived state views.
 - `RL_FORWARD`: legal action scoring and recommendation.
 - `UI_RENDER`: overlay frame/window rendering only.
+
+## v3 Visible-Information API
+
+The v3 product-facing path accepts a recognized visible state JSON and returns
+Top 3 recommendations without reading hidden cards or controlling the game
+client.
+
+```powershell
+python -m app.main --input examples/recognized_state.json --dry-run --pretty
+python -m app.main --input examples/midgame_state.json --mode perfectdou_monte_carlo --pretty
+python -m app.main --serve --host 127.0.0.1 --port 8000
+```
+
+`POST /recommend` accepts:
+
+```json
+{
+  "state": {"self_hand": ["3", "3"]},
+  "options": {"n_samples": 256, "rollout_per_action": 64, "mode": "perfectdou_monte_carlo"}
+}
+```
+
+When PerfectDou rollout is unavailable, the response uses `score` for ranking
+and leaves `win_rate` as `null`.

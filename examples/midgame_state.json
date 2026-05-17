@@ -1,0 +1,22 @@
+{
+  "self_hand": ["3", "3", "5", "5", "6", "6", "7", "8", "8", "9", "9", "10", "10", "J", "Q", "K", "X"],
+  "last_table_action": {
+    "player": "landlord_down",
+    "cards": ["7", "7"],
+    "is_pass": false
+  },
+  "public_action_history": [
+    {"player": "landlord", "cards": ["4", "4"], "is_pass": false},
+    {"player": "landlord_down", "cards": ["7", "7"], "is_pass": false}
+  ],
+  "player_position": "landlord_up",
+  "acting_player": "landlord_up",
+  "num_cards_left": {
+    "landlord": 18,
+    "landlord_down": 15,
+    "landlord_up": 17
+  },
+  "landlord_public_cards": ["A", "2", "D"],
+  "recognition_confidence": 0.94,
+  "frame_id": "2026-05-17T15:30:00.100+10:00"
+}

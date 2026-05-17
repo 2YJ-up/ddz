@@ -410,3 +410,39 @@ class RuleEngine:
             actions.append(CardAction(actor_seat=actor_seat, ranks=JOKER_RANKS))
         result = tuple(actions)
         return result
+
+
+def generate_legal_actions(state: object) -> list[list[str]]:
+    """Return legal card-code actions for the current visible state.
+
+    This is the v3 product-facing wrapper around the existing enum-based rule
+    engine. Business-layer callers use string ranks; only this boundary converts
+    them into the legacy domain enum representation.
+    """
+    from src.core.cards import from_domain_ranks, to_domain_counts, to_domain_rank
+
+    engine = RuleEngine()
+    previous_action = None
+    last_non_pass_action = getattr(state, "last_non_pass_action", None)
+    if last_non_pass_action is not None:
+        previous_action = engine.classify_action(
+            CardAction(
+                actor_seat=PlayerSeat.RIGHT_OPPONENT,
+                ranks=tuple(to_domain_rank(card) for card in getattr(last_non_pass_action, "cards", [])),
+            )
+        )
+    legal = engine.enumerate_legal_actions(
+        hand_counts=to_domain_counts(getattr(state, "self_hand", [])),
+        actor_seat=PlayerSeat.SELF,
+        previous_action=previous_action,
+    )
+    return [from_domain_ranks(action.ranks) for action in legal]
+
+
+def classify_action_cards(cards: list[str]) -> str:
+    from src.core.cards import to_domain_rank
+
+    engine = RuleEngine()
+    action = CardAction(actor_seat=PlayerSeat.SELF, ranks=tuple(to_domain_rank(card) for card in cards))
+    classified = engine.classify_action(action)
+    return classified.action_type.value

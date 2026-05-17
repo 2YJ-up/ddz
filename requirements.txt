@@ -6,3 +6,5 @@ opencv-python>=4.9.0
 onnxruntime>=1.18.0
 ultralytics>=8.3.0
 pillow>=10.0.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
