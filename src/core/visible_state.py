@@ -59,7 +59,17 @@ class VisibleGameState:
 
         last_non_pass = self.last_non_pass_action
         if last_non_pass is None:
-            last_non_pass = next((action for action in reversed(history) if not action.is_pass), None)
+            pass_count = 0
+            for action in history:
+                if action.is_pass:
+                    if last_non_pass is not None:
+                        pass_count += 1
+                        if pass_count >= 2:
+                            last_non_pass = None
+                            pass_count = 0
+                else:
+                    last_non_pass = action
+                    pass_count = 0
         elif not isinstance(last_non_pass, VisibleAction):
             last_non_pass = VisibleAction(**last_non_pass)  # type: ignore[arg-type]
         object.__setattr__(self, "last_non_pass_action", last_non_pass)

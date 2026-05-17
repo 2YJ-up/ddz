@@ -4,12 +4,12 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from src.adapters.douzero_adapter import DouZeroAdapter
 from src.adapters.perfectdou_adapter import PerfectDouAdapter
 from src.adapters.vision_adapter import RecognizedFrameState, parse_recognized_frame_state
 from src.core.belief_sampler import BeliefSample, build_unknown_pool, sample_hidden_hands
 from src.core.cards import CARD_RANKS, normalize_cards
 from src.core.decision_engine import ActionEvaluation, evaluate_actions
-from src.core.rule_engine import generate_legal_actions
 from src.core.state_validator import ValidationResult, validate_visible_state
 from src.core.visible_state import VisibleGameState
 
@@ -37,8 +37,13 @@ class RecommendationOptions:
 
 
 class RecommendationService:
-    def __init__(self, perfectdou_adapter: PerfectDouAdapter | None = None) -> None:
+    def __init__(
+        self,
+        perfectdou_adapter: PerfectDouAdapter | None = None,
+        douzero_adapter: DouZeroAdapter | None = None,
+    ) -> None:
         self.perfectdou_adapter = perfectdou_adapter or PerfectDouAdapter()
+        self.douzero_adapter = douzero_adapter or DouZeroAdapter(rules_adapter=self.perfectdou_adapter)
 
     def dry_run(self, raw_state: Mapping[str, Any]) -> dict[str, object]:
         recognized = parse_recognized_frame_state(raw_state)
@@ -63,16 +68,30 @@ class RecommendationService:
             raise ValueError("; ".join(validation.errors))
 
         state_warnings = _merge_warnings(adapter_warnings, validation.warnings)
-        if resolved_options.mode.startswith("perfectdou") and not self.perfectdou_adapter.available:
-            state_warnings.append(f"PerfectDou 不可用: {self.perfectdou_adapter.unavailable_reason}; 已降级为启发式 score 模式")
+        if resolved_options.mode.startswith("perfectdou"):
+            if not self.perfectdou_adapter.available:
+                state_warnings.append(
+                    f"PerfectDou 不可用: {self.perfectdou_adapter.unavailable_reason}; 已降级为本地规则 + 启发式 score 模式"
+                )
+            elif not self.perfectdou_adapter.rules_available:
+                state_warnings.append(
+                    f"PerfectDou 规则模块不可用: {self.perfectdou_adapter.rules_unavailable_reason}; 已降级为本地规则"
+                )
+            if not self.perfectdou_adapter.policy_available:
+                state_warnings.append(
+                    f"PerfectDou policy/rollout 不可用: {self.perfectdou_adapter.policy_unavailable_reason}; 已使用 score 模式"
+                )
 
         samples = self._sample_hands(visible_state, resolved_options, state_warnings)
-        legal_actions = generate_legal_actions(visible_state)
+        legal_actions = self.perfectdou_adapter.generate_legal_actions(visible_state)
+        model_source, model_scores = self._model_scores(visible_state, resolved_options, state_warnings)
         evaluations = evaluate_actions(
             visible_state,
             legal_actions,
             samples,
             rollout_per_action=resolved_options.rollout_per_action,
+            model_scores=model_scores,
+            model_source=model_source,
         )
         top_evaluations = evaluations[:3]
 
@@ -85,8 +104,28 @@ class RecommendationService:
             "top_actions": [_evaluation_to_dict(index + 1, evaluation) for index, evaluation in enumerate(top_evaluations)],
             "state_warnings": _dedupe(state_warnings),
             "belief_summary": belief_summary,
+            "model_source": model_source or "heuristic",
         }
         return response
+
+    def _model_scores(
+        self,
+        state: VisibleGameState,
+        options: RecommendationOptions,
+        warnings: list[str],
+    ) -> tuple[str | None, dict[tuple[str, ...], float]]:
+        use_douzero = options.mode in {"auto", "douzero", "douzero_adp", "perfectdou_monte_carlo"}
+        if not use_douzero:
+            return None, {}
+        if not self.douzero_adapter.available:
+            warnings.append(f"DouZero ADP 不可用: {self.douzero_adapter.unavailable_reason}; 已降级为启发式 score 模式")
+            return None, {}
+        scores = self.douzero_adapter.score_actions(state)
+        if not scores:
+            warnings.append("DouZero ADP 未返回可用动作评分；已降级为启发式 score 模式")
+            return None, {}
+        warnings.append("已使用 DouZero ADP 模型评分；最终仍输出 score 而非真实 rollout win_rate")
+        return "douzero_adp", scores
 
     def _sample_hands(
         self,

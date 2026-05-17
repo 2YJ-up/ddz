@@ -97,7 +97,10 @@ client.
 ```powershell
 python -m app.main --input examples/recognized_state.json --dry-run --pretty
 python -m app.main --input examples/midgame_state.json --mode perfectdou_monte_carlo --pretty
+python -m app.main --input examples/midgame_state.json --mode douzero_adp --pretty
 python -m app.main --serve --host 127.0.0.1 --port 8000
+python -m app.live_state_writer --output examples/live_test.json --self-position landlord --acting-player landlord
+python -m app.overlay_client --input examples/live_test.json
 ```
 
 `POST /recommend` accepts:
@@ -111,3 +114,24 @@ python -m app.main --serve --host 127.0.0.1 --port 8000
 
 When PerfectDou rollout is unavailable, the response uses `score` for ranking
 and leaves `win_rate` as `null`.
+
+The API server does not draw anything by itself. Use `app.overlay_client` in a
+second terminal to show the latest recommendation from a JSON state file in a
+topmost overlay. Press `Esc` to close it and drag the panel with the mouse to
+move it.
+
+For live capture, run `app.live_state_writer` in a third terminal. It writes the
+recognized hand into `examples/live_test.json`. If the game is in bidding,
+doubling, settlement, or the detector sees no cards, the overlay will show a
+waiting message instead of repeating stale recommendations.
+
+`external/PerfectDou` is treated as a read-only third-party checkout. In the
+current Windows/Python runtime the official pure-Python rule modules can be
+used, while the official policy encoder is packaged as a Linux Python 3.7
+shared object, so full PerfectDou rollout still requires a compatible runtime.
+The project also uses the DouZero ADP checkpoints bundled in that checkout as a
+usable strong-model fallback on the current machine.
+
+```powershell
+git clone --depth 1 https://github.com/Netease-Games-AI-Lab-Guangzhou/PerfectDou.git external/PerfectDou
+```

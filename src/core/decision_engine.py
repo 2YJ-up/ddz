@@ -28,10 +28,21 @@ def evaluate_actions(
     legal_actions: list[list[str]],
     samples: list[BeliefSample],
     rollout_per_action: int = 64,
+    model_scores: Mapping[tuple[str, ...], float] | None = None,
+    model_source: str | None = None,
 ) -> list[ActionEvaluation]:
     engine = RuleEngine()
+    normalized_model_scores = _normalize_model_scores(model_scores or {})
     evaluations = [
-        _evaluate_action(state, normalize_cards(action), samples, engine, rollout_per_action)
+        _evaluate_action(
+            state,
+            normalize_cards(action),
+            samples,
+            engine,
+            rollout_per_action,
+            model_score=normalized_model_scores.get(tuple(normalize_cards(action)), 0.0),
+            model_source=model_source,
+        )
         for action in legal_actions
     ]
     evaluations.sort(key=lambda item: item.score, reverse=True)
@@ -44,6 +55,8 @@ def _evaluate_action(
     samples: list[BeliefSample],
     engine: RuleEngine,
     rollout_per_action: int,
+    model_score: float = 0.0,
+    model_source: str | None = None,
 ) -> ActionEvaluation:
     card_action = _to_card_action(action)
     classified = engine.classify_action(card_action)
@@ -68,6 +81,11 @@ def _evaluate_action(
     if not remaining:
         score += 120.0
         reasons.append("可直接出完")
+
+    if model_score > 0.0:
+        score += model_score
+        source_text = model_source or "策略模型"
+        reasons.append(f"{source_text} 模型评分支持")
 
     control_adjustment, control_reasons = _control_adjustment(state, action, classified.action_type, remaining)
     score += control_adjustment
@@ -222,6 +240,26 @@ def _confidence(
     if rollout_count > 0 and len(samples) >= 128:
         return "high"
     return "medium"
+
+
+def _normalize_model_scores(model_scores: Mapping[tuple[str, ...], float]) -> dict[tuple[str, ...], float]:
+    finite_scores = [float(value) for value in model_scores.values() if _is_finite(value)]
+    normalized: dict[tuple[str, ...], float] = {}
+    if finite_scores:
+        min_score = min(finite_scores)
+        max_score = max(finite_scores)
+        span = max_score - min_score
+        for action, value in model_scores.items():
+            if _is_finite(value):
+                if span <= 1.0e-9:
+                    normalized[action] = 20.0
+                else:
+                    normalized[action] = 5.0 + 45.0 * ((float(value) - min_score) / span)
+    return normalized
+
+
+def _is_finite(value: float) -> bool:
+    return value == value and value not in {float("inf"), float("-inf")}
 
 
 def _turn_count_estimate(cards: list[str] | Mapping[str, int]) -> int:

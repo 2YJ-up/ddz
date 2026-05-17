@@ -1,0 +1,48 @@
+{
+  "self_hand": [],
+  "last_table_action": null,
+  "public_action_history": [],
+  "player_position": "landlord_up",
+  "acting_player": "landlord_up",
+  "num_cards_left": {
+    "landlord": 20,
+    "landlord_down": 17,
+    "landlord_up": 0
+  },
+  "landlord_public_cards": [],
+  "recognition_confidence": 0.0,
+  "self_hand_confidence": 0.0,
+  "table_confidence": 0.0,
+  "recommendation_ready": false,
+  "status_reason": "等待识别到当前手牌",
+  "detected_table_cards": [],
+  "detected_table_player": "landlord_down",
+  "used_table_player": null,
+  "used_table_cards": [],
+  "used_table_action_type": "none",
+  "used_table_source": "none",
+  "memory_retained_frames": 13,
+  "detected_counts": {
+    "all": 0,
+    "self": 0,
+    "table": 0,
+    "raw_table": 0
+  },
+  "writer_pid": 3460,
+  "writer_thresholds": {
+    "min_recommend_confidence": 0.45,
+    "min_many_cards_confidence": 0.28,
+    "min_table_confidence": 0.15,
+    "table_candidate_confidence": 0.05,
+    "new_action_min_confidence": 0.15,
+    "max_memory_retained_frames": 12,
+    "prefer_last_table_player": false
+  },
+  "frame_id": "live:1779031730758",
+  "warnings": [
+    "未捕获到 MuMu 窗口",
+    "未识别到当前手牌；如果处于叫地主/加倍/结算阶段，这是正常的",
+    "未识别到桌面上一手牌",
+    "等待识别到当前手牌"
+  ]
+}

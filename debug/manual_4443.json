@@ -1,0 +1,14 @@
+﻿{
+  "self_hand": ["D", "2", "K", "K", "Q", "Q", "Q", "J", "10", "10", "10", "10", "9", "6", "5", "5", "4"],
+  "last_table_action": {"player": "landlord", "cards": ["4", "4", "4", "3"], "is_pass": false},
+  "public_action_history": [
+    {"player": "landlord", "cards": ["4", "4", "4", "3"], "is_pass": false}
+  ],
+  "player_position": "landlord_down",
+  "acting_player": "landlord_down",
+  "num_cards_left": {"landlord": 16, "landlord_down": 17, "landlord_up": 17},
+  "landlord_public_cards": ["J", "9", "7"],
+  "recognition_confidence": 0.9,
+  "frame_id": "manual:4443",
+  "warnings": []
+}
