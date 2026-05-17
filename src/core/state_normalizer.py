@@ -15,6 +15,7 @@ class StateNormalizerConfig:
     bootstrap_from_self_detections: bool = True
     min_self_cards_to_start: int = 1
     bootstrap_stable_frames: int = 1
+    live_self_stable_frames: int = 2
 
 
 class StateObservationNormalizer:
@@ -23,6 +24,9 @@ class StateObservationNormalizer:
         self.state_manager = state_manager
         self._candidate_self_cards: tuple[CardRank, ...] = ()
         self._candidate_stable_frames = 0
+        self._accepted_live_self_cards: tuple[CardRank, ...] = ()
+        self._live_candidate_self_cards: tuple[CardRank, ...] = ()
+        self._live_candidate_stable_frames = 0
 
     def normalize(self, detections: tuple[CardDetection, ...]) -> GameStateView:
         observed_self_cards = self._extract_self_cards(detections)
@@ -35,6 +39,7 @@ class StateObservationNormalizer:
             else:
                 view = self.state_manager.build_waiting_view()
         else:
+            self_cards = self._stabilize_live_self_cards(observed_self_cards)
             if self._should_rebootstrap(self_cards):
                 self._start_observed_hand(self_cards)
             elif len(self_cards) > 0:
@@ -54,6 +59,7 @@ class StateObservationNormalizer:
         self_cards = ()
         if self.config.bootstrap_from_self_detections:
             self_cards = observed_self_cards
+        self._accept_live_self_cards(self_cards)
         initial_deal = InitialDeal(
             self_cards=self_cards,
             landlord_cards=(),
@@ -163,6 +169,37 @@ class StateObservationNormalizer:
         if self._candidate_stable_frames >= required_frames:
             stable_cards = self._candidate_self_cards
         return stable_cards
+
+    def _stabilize_live_self_cards(self, observed_self_cards: tuple[CardRank, ...]) -> tuple[CardRank, ...]:
+        if len(self._accepted_live_self_cards) == 0:
+            self._accept_live_self_cards(observed_self_cards)
+        elif observed_self_cards == self._accepted_live_self_cards:
+            self._reset_live_candidate()
+        elif len(observed_self_cards) > len(self._accepted_live_self_cards):
+            self._accept_live_self_cards(observed_self_cards)
+        elif self._live_candidate_is_stable(observed_self_cards):
+            self._accept_live_self_cards(observed_self_cards)
+        stable_cards = self._accepted_live_self_cards
+        return stable_cards
+
+    def _live_candidate_is_stable(self, observed_self_cards: tuple[CardRank, ...]) -> bool:
+        if observed_self_cards == self._live_candidate_self_cards:
+            self._live_candidate_stable_frames += 1
+        else:
+            self._live_candidate_self_cards = observed_self_cards
+            self._live_candidate_stable_frames = 1
+        required_frames = max(1, self.config.live_self_stable_frames)
+        candidate_is_empty_drop = len(observed_self_cards) == 0 and len(self._accepted_live_self_cards) > 3
+        stable = self._live_candidate_stable_frames >= required_frames and not candidate_is_empty_drop
+        return stable
+
+    def _accept_live_self_cards(self, self_cards: tuple[CardRank, ...]) -> None:
+        self._accepted_live_self_cards = self_cards
+        self._reset_live_candidate()
+
+    def _reset_live_candidate(self) -> None:
+        self._live_candidate_self_cards = ()
+        self._live_candidate_stable_frames = 0
 
     def _apply_table_observation(
         self,

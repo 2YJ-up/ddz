@@ -111,6 +111,7 @@ class CardDetector:
             source=image,
             conf=self.config.confidence_threshold,
             iou=self.config.nms_iou_threshold,
+            max_det=80,
             verbose=False,
         )
         if len(predictions) > 0:
@@ -230,23 +231,25 @@ class CardDetector:
             x2 = min(frame.width, max(x1, int(float(xyxy[2]))))
             y2 = min(frame.height, max(y1, int(float(xyxy[3]))))
             bbox = BoundingBox(x=x1, y=y1, width=max(0, x2 - x1), height=max(0, y2 - y1))
-            seat_region = self._infer_seat_region(bbox, frame)
-            detection = CardDetection(
-                card_rank=rank,
-                confidence=confidence,
-                bbox=bbox,
-                seat_region=seat_region,
-            )
+            if bbox.width > 0 and bbox.height > 0:
+                seat_region = self._infer_seat_region(bbox, frame)
+                detection = CardDetection(
+                    card_rank=rank,
+                    confidence=confidence,
+                    bbox=bbox,
+                    seat_region=seat_region,
+                )
         return detection
 
     def _infer_seat_region(self, bbox: BoundingBox, frame: FrameBuffer) -> PlayerSeat:
         center_x = bbox.x + bbox.width / 2.0
         center_y = bbox.y + bbox.height / 2.0
         seat = PlayerSeat.SELF
-        if frame.height > 0 and center_y < frame.height * 0.62:
+        if frame.height > 0 and center_y < frame.height * 0.55:
             is_table_card = (
                 frame.width > 0
                 and center_y >= frame.height * 0.18
+                and center_y <= frame.height * 0.68
                 and center_x >= frame.width * 0.25
                 and center_x <= frame.width * 0.75
             )

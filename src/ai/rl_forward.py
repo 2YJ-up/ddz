@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from src.ai.perfectdou_adapter import PERFECTDOU_INPUT_SIZE, PERFECTDOU_OUTPUT_SIZE, PerfectDouAdapter
 from src.core.rule_engine import RuleEngine
 from src.domain.actions import ActionRecommendation, ActionType, CardAction, GameStateView, PlayerSeat
 from src.domain.cards import CardRank, FULL_DECK_RANK_COUNTS
@@ -31,11 +32,13 @@ class RlForwardService:
         self._model_loaded = False
         self._dimension_warning_emitted = False
         self._turn_count_cache: dict[tuple[int, ...], int] = {}
+        self._perfectdou_adapter = PerfectDouAdapter(rule_engine)
 
     def load(self) -> None:
         self._session = None
         self._model_loaded = False
-        if self.config.model_path.exists():
+        model_path = self._resolve_model_path()
+        if model_path.exists():
             self._load_onnx_session()
 
     def is_loaded(self) -> bool:
@@ -70,11 +73,13 @@ class RlForwardService:
         policy_scores: np.ndarray | None = None
         scored_actions: tuple[tuple[CardAction, float], ...] = ()
         if len(legal_actions) > 0:
-            policy_scores = self._run_policy(state_view)
+            heuristic_actions = self._score_actions_heuristically(tuple(legal_actions), state_view)
+            model_candidate_actions = tuple(action for action, _ in heuristic_actions[:150])
+            policy_scores = self._run_policy(state_view, model_candidate_actions)
             if policy_scores is not None and policy_scores.size > 0:
-                scored_actions = self._score_actions_with_policy(tuple(legal_actions), policy_scores)
+                scored_actions = self._score_actions_with_policy(tuple(legal_actions), policy_scores, heuristic_actions)
             else:
-                scored_actions = self._score_actions_heuristically(tuple(legal_actions), state_view)
+                scored_actions = heuristic_actions
         limited_actions = scored_actions[: self.config.top_n]
         reason_code = "onnx_policy" if policy_scores is not None and policy_scores.size > 0 else "heuristic_fallback"
         recommendations = self._to_recommendations(limited_actions, reason_code, state_view)
@@ -83,7 +88,15 @@ class RlForwardService:
     def _load_onnx_session(self) -> None:
         try:
             ort_module = importlib.import_module("onnxruntime")
-            self._session = ort_module.InferenceSession(str(self.config.model_path), providers=["CPUExecutionProvider"])
+            session_options = ort_module.SessionOptions()
+            session_options.graph_optimization_level = ort_module.GraphOptimizationLevel.ORT_ENABLE_ALL
+            session_options.inter_op_num_threads = 1
+            session_options.intra_op_num_threads = 1
+            self._session = ort_module.InferenceSession(
+                str(self._resolve_model_path()),
+                sess_options=session_options,
+                providers=["CPUExecutionProvider"],
+            )
             input_meta = self._session.get_inputs()[0]
             if self._input_name == "":
                 self._input_name = input_meta.name
@@ -95,11 +108,33 @@ class RlForwardService:
             self._session = None
             self._model_loaded = False
 
-    def _run_policy(self, state_view: GameStateView) -> np.ndarray | None:
+    def _resolve_model_path(self) -> Path:
+        model_path = self.config.model_path
+        if not model_path.exists():
+            candidates = (
+                Path(r"C:\Users\jie\Documents\ddz\models\perfectdou_actor.onnx"),
+                Path("models/perfectdou_actor.onnx"),
+            )
+            index = 0
+            while index < len(candidates):
+                if (
+                    model_path.name == "perfectdou_actor.onnx"
+                    and not model_path.exists()
+                    and candidates[index].exists()
+                ):
+                    model_path = candidates[index]
+                index += 1
+        return model_path
+
+    def _run_policy(
+        self,
+        state_view: GameStateView,
+        legal_actions: tuple[CardAction, ...],
+    ) -> np.ndarray | None:
         scores: np.ndarray | None = np.array([], dtype=np.float32)
         if self._model_loaded and self._session is not None:
             if self._policy_input_matches_state(state_view):
-                tensor = self._build_policy_tensor(state_view)
+                tensor = self._build_policy_tensor(state_view, legal_actions)
                 try:
                     outputs = self._session.run([self._output_name], {self._input_name: tensor})
                     scores = np.asarray(outputs[0], dtype=np.float32).reshape(-1)
@@ -111,14 +146,25 @@ class RlForwardService:
                 scores = None
         return scores
 
-    def _build_policy_tensor(self, state_view: GameStateView) -> np.ndarray:
-        base_tensor = np.asarray(state_view.state_matrix, dtype=np.float32).reshape(-1)
-        tensor = base_tensor.reshape((1, int(base_tensor.size)))
+    def _build_policy_tensor(
+        self,
+        state_view: GameStateView,
+        legal_actions: tuple[CardAction, ...] = (),
+    ) -> np.ndarray:
+        if self._expected_input_size == PERFECTDOU_INPUT_SIZE:
+            tensor = self._perfectdou_adapter.encode_policy_input(state_view, legal_actions)
+        else:
+            base_tensor = np.asarray(state_view.state_matrix, dtype=np.float32).reshape(-1)
+            tensor = base_tensor.reshape((1, int(base_tensor.size)))
         return tensor
 
     def _policy_input_matches_state(self, state_view: GameStateView) -> bool:
         state_size = len(state_view.state_matrix)
-        matches = self._expected_input_size <= 0 or self._expected_input_size == state_size
+        matches = (
+            self._expected_input_size <= 0
+            or self._expected_input_size == state_size
+            or self._expected_input_size == PERFECTDOU_INPUT_SIZE
+        )
         return matches
 
     def _warn_policy_dimension_mismatch(self) -> None:
@@ -136,17 +182,45 @@ class RlForwardService:
         self,
         actions: tuple[CardAction, ...],
         policy_scores: np.ndarray,
+        heuristic_scored_actions: tuple[tuple[CardAction, float], ...],
     ) -> tuple[tuple[CardAction, float], ...]:
         scored: list[tuple[CardAction, float]] = []
+        heuristic_scores = {action: score for action, score in heuristic_scored_actions}
+        valid_logits = self._valid_policy_logits(actions, policy_scores)
+        if len(valid_logits) == 0:
+            return heuristic_scored_actions
+        max_logit = max(valid_logits.values(), default=0.0)
+        max_heuristic = max(heuristic_scores.values(), default=1.0)
         for action in actions:
             index = self._policy_index_for_action(action, policy_scores.size)
-            model_score = float(policy_scores[index]) if policy_scores.size > 0 else 0.0
-            score = max(0.0, model_score)
-            if score == 0.0:
-                score = 0.0001
+            heuristic_score = float(heuristic_scores.get(action, 0.001))
+            heuristic_component = heuristic_score / max(0.001, max_heuristic)
+            model_score = valid_logits.get(index)
+            if model_score is not None:
+                clipped = min(20.0, max(-20.0, float(model_score) - max_logit))
+                model_component = float(np.exp(clipped))
+                score = heuristic_score * (1.0 + model_component) + heuristic_component
+            else:
+                score = heuristic_score * 0.95 + heuristic_component * 0.25
             scored.append((action, score))
         result = tuple(sorted(scored, key=lambda item: item[1], reverse=True))
         return result
+
+    def _valid_policy_logits(
+        self,
+        actions: tuple[CardAction, ...],
+        policy_scores: np.ndarray,
+    ) -> dict[int, float]:
+        logits: dict[int, float] = {}
+        for action in actions:
+            index = self._policy_index_for_action(action, policy_scores.size)
+            if 0 <= index < policy_scores.size:
+                value = float(policy_scores[index])
+                if np.isfinite(value) and value > -1.0e30:
+                    existing = logits.get(index)
+                    if existing is None or value > existing:
+                        logits[index] = value
+        return logits
 
     def _score_actions_heuristically(
         self,
@@ -645,13 +719,17 @@ class RlForwardService:
         return text
 
     def _policy_index_for_action(self, action: CardAction, policy_size: int) -> int:
-        classified = self.rule_engine.classify_action(action)
-        type_index = self._action_type_index(classified.action_type)
-        rank_index = 0
-        if classified.primary_rank is not None:
-            rank_index = max(0, int(classified.primary_rank) - int(CardRank.THREE))
-        raw_index = type_index * 15 + rank_index
-        index = raw_index % max(1, policy_size)
+        adapter_index = self._perfectdou_adapter.action_index_for_action(action)
+        if adapter_index is not None and policy_size == PERFECTDOU_OUTPUT_SIZE:
+            index = adapter_index
+        else:
+            classified = self.rule_engine.classify_action(action)
+            type_index = self._action_type_index(classified.action_type)
+            rank_index = 0
+            if classified.primary_rank is not None:
+                rank_index = max(0, int(classified.primary_rank) - int(CardRank.THREE))
+            raw_index = type_index * 15 + rank_index
+            index = raw_index % max(1, policy_size)
         return index
 
     def _action_type_index(self, action_type: ActionType) -> int:

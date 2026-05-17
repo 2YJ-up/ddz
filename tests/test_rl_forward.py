@@ -1,5 +1,15 @@
 from pathlib import Path
 
+import numpy as np
+
+from src.ai.perfectdou_adapter import (
+    PERFECTDOU_ACTION_ID_COLUMN,
+    PERFECTDOU_ACTION_OFFSET,
+    PERFECTDOU_ACTION_STRIDE,
+    PERFECTDOU_ACTION_VALID_COLUMN,
+    PERFECTDOU_INPUT_SIZE,
+    PerfectDouAdapter,
+)
 from src.ai.rl_forward import RlForwardConfig, RlForwardService
 from src.core.rule_engine import RuleEngine
 from src.domain.actions import CardAction, GameStateView, PlayerSeat
@@ -33,6 +43,90 @@ def test_rl_forward_uses_self_rank_counts_for_fallback() -> None:
 class InvalidShapeSession:
     def run(self, output_names, input_feed):
         raise Exception("InvalidArgument: Got invalid dimensions for input")
+
+
+class FixedPolicySession:
+    def __init__(self, preferred_index: int) -> None:
+        self.preferred_index = preferred_index
+        self.last_input = None
+
+    def run(self, output_names, input_feed):
+        self.last_input = next(iter(input_feed.values()))
+        scores = np.full((1, 621), -3.4028235e38, dtype=np.float32)
+        scores[0, self.preferred_index] = 9.0
+        return [scores]
+
+
+def test_perfectdou_action_space_matches_official_indices() -> None:
+    adapter = PerfectDouAdapter(RuleEngine())
+
+    assert len(adapter.action_space) == 621
+    assert adapter.action_space["3"] == 0
+    assert adapter.action_space["333444**"] == 512
+    assert adapter.action_space["3333****"] == 593
+    assert adapter.action_space["BR"] == 619
+    assert adapter.action_space["pass"] == 620
+
+
+def test_rl_forward_builds_perfectdou_policy_tensor() -> None:
+    rule_engine = RuleEngine()
+    service = RlForwardService(
+        config=RlForwardConfig(model_path=Path("models/missing.onnx"), top_n=1),
+        rule_engine=rule_engine,
+    )
+    service._expected_input_size = PERFECTDOU_INPUT_SIZE
+    view = GameStateView(
+        current_turn=PlayerSeat.SELF,
+        landlord_seat=PlayerSeat.SELF,
+        action_log=(),
+        current_trick_action=None,
+        self_rank_counts={CardRank.THREE: 1},
+        public_played_counts={},
+        known_unseen_counts={},
+        hand_counts={PlayerSeat.SELF: 1, PlayerSeat.LEFT_OPPONENT: 17, PlayerSeat.RIGHT_OPPONENT: 17},
+        state_matrix=tuple(1 for _ in range(54)),
+    )
+    actions = (CardAction(actor_seat=PlayerSeat.SELF, ranks=(CardRank.THREE,)),)
+
+    tensor = service._build_policy_tensor(view, actions)
+
+    assert tensor.shape == (1, PERFECTDOU_INPUT_SIZE)
+    assert tensor[0, PERFECTDOU_ACTION_OFFSET + PERFECTDOU_ACTION_ID_COLUMN] == 0.0
+    assert tensor[0, PERFECTDOU_ACTION_OFFSET + PERFECTDOU_ACTION_VALID_COLUMN] == 1.0
+    assert np.sum(tensor[0, PERFECTDOU_ACTION_OFFSET + PERFECTDOU_ACTION_STRIDE :]) == 0.0
+
+
+def test_rl_forward_uses_perfectdou_logits_for_action_ranking() -> None:
+    rule_engine = RuleEngine()
+    adapter = PerfectDouAdapter(rule_engine)
+    preferred_action = CardAction(actor_seat=PlayerSeat.SELF, ranks=(CardRank.FOUR,))
+    preferred_index = adapter.action_index_for_action(preferred_action)
+    assert preferred_index is not None
+    session = FixedPolicySession(preferred_index)
+    service = RlForwardService(
+        config=RlForwardConfig(model_path=Path("models/missing.onnx"), top_n=1, input_name="input", output_name="action_logit"),
+        rule_engine=rule_engine,
+    )
+    service._session = session
+    service._model_loaded = True
+    service._expected_input_size = PERFECTDOU_INPUT_SIZE
+    view = GameStateView(
+        current_turn=PlayerSeat.SELF,
+        landlord_seat=PlayerSeat.SELF,
+        action_log=(),
+        current_trick_action=None,
+        self_rank_counts={CardRank.THREE: 1, CardRank.FOUR: 1},
+        public_played_counts={},
+        known_unseen_counts={},
+        hand_counts={PlayerSeat.SELF: 2, PlayerSeat.LEFT_OPPONENT: 17, PlayerSeat.RIGHT_OPPONENT: 17},
+        state_matrix=tuple(1 for _ in range(54)),
+    )
+
+    recommendations = service.recommend(view)
+
+    assert recommendations[0].action.ranks == (CardRank.FOUR,)
+    assert recommendations[0].reason_code == "onnx_policy"
+    assert session.last_input.shape == (1, PERFECTDOU_INPUT_SIZE)
 
 
 def test_rl_forward_falls_back_when_policy_dimension_mismatches(capsys) -> None:

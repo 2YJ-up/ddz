@@ -3,11 +3,11 @@
   "capture_fps": 20,
   "models": {
     "card_detector_path": "models/yolov8_cards.pt",
-    "policy_model_path": "models/perfectdou_actor.onnx"
+    "policy_model_path": "C:/Users/jie/Documents/ddz/models/perfectdou_actor.onnx"
   },
   "cv": {
-    "confidence_threshold": 0.35,
-    "nms_iou_threshold": 0.45,
+    "confidence_threshold": 0.22,
+    "nms_iou_threshold": 0.8,
     "input_size": 640,
     "class_names": {
       "0": "small_joker",
@@ -36,7 +36,8 @@
     "first_turn": "self",
     "bootstrap_from_self_detections": true,
     "min_self_cards_to_start": 1,
-    "bootstrap_stable_frames": 1
+    "bootstrap_stable_frames": 1,
+    "live_self_stable_frames": 2
   },
   "ui": {
     "overlay_offset_x": 20,

@@ -39,7 +39,7 @@ def test_state_normalizer_waits_for_self_cards_before_starting() -> None:
 
 def test_state_normalizer_appends_self_action_when_cards_disappear() -> None:
     normalizer = StateObservationNormalizer(
-        config=StateNormalizerConfig(),
+        config=StateNormalizerConfig(live_self_stable_frames=1),
         state_manager=StateManager(rule_engine=RuleEngine()),
     )
     first_detections = (
@@ -70,6 +70,44 @@ def test_state_normalizer_appends_self_action_when_cards_disappear() -> None:
 
     assert len(view.action_log) == 1
     assert view.action_log[0].action.ranks == (CardRank.THREE,)
+
+
+def test_state_normalizer_ignores_one_frame_live_hand_miss() -> None:
+    normalizer = StateObservationNormalizer(
+        config=StateNormalizerConfig(live_self_stable_frames=2),
+        state_manager=StateManager(rule_engine=RuleEngine()),
+    )
+    first_detections = (
+        CardDetection(
+            card_rank=CardRank.THREE,
+            confidence=0.9,
+            bbox=BoundingBox(x=10, y=100, width=8, height=12),
+            seat_region=PlayerSeat.SELF,
+        ),
+        CardDetection(
+            card_rank=CardRank.FOUR,
+            confidence=0.9,
+            bbox=BoundingBox(x=20, y=100, width=8, height=12),
+            seat_region=PlayerSeat.SELF,
+        ),
+    )
+    missed_once = (
+        CardDetection(
+            card_rank=CardRank.FOUR,
+            confidence=0.9,
+            bbox=BoundingBox(x=20, y=100, width=8, height=12),
+            seat_region=PlayerSeat.SELF,
+        ),
+    )
+
+    normalizer.normalize(first_detections)
+    held_view = normalizer.normalize(missed_once)
+    accepted_view = normalizer.normalize(missed_once)
+
+    assert held_view.self_rank_counts[CardRank.THREE] == 1
+    assert len(held_view.action_log) == 0
+    assert len(accepted_view.action_log) == 1
+    assert accepted_view.action_log[0].action.ranks == (CardRank.THREE,)
 
 
 def test_state_normalizer_waits_for_stable_bootstrap_frames() -> None:
@@ -197,6 +235,7 @@ def test_state_normalizer_live_self_observation_overrides_stale_hand_view() -> N
 
     normalizer.normalize(stale_detections)
     normalizer.state_manager._current_turn = PlayerSeat.LEFT_OPPONENT
+    normalizer.normalize(current_detections)
     view = normalizer.normalize(current_detections)
 
     assert CardRank.JACK not in view.self_rank_counts

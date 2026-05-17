@@ -31,9 +31,11 @@ def test_loads_default_config_and_runs_missing_window_once() -> None:
 def test_default_config_uses_stable_observation_bootstrap() -> None:
     config = load_config("config/default.json")
 
-    assert config.cv.confidence_threshold == 0.35
+    assert config.cv.confidence_threshold == 0.22
+    assert config.cv.nms_iou_threshold == 0.8
     assert config.state.min_self_cards_to_start == 1
     assert config.state.bootstrap_stable_frames == 1
+    assert config.state.live_self_stable_frames == 2
 
 
 def test_overlay_anchor_stays_visible_when_window_fills_screen() -> None:

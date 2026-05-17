@@ -90,6 +90,7 @@ def build_runtime(config: AppConfig) -> AssistantRuntime:
             bootstrap_from_self_detections=config.state.bootstrap_from_self_detections,
             min_self_cards_to_start=config.state.min_self_cards_to_start,
             bootstrap_stable_frames=config.state.bootstrap_stable_frames,
+            live_self_stable_frames=config.state.live_self_stable_frames,
         ),
         state_manager=state_manager,
     )

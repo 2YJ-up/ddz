@@ -36,6 +36,7 @@ class StateConfig:
     bootstrap_from_self_detections: bool
     min_self_cards_to_start: int
     bootstrap_stable_frames: int
+    live_self_stable_frames: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,7 @@ def load_config(config_path: str | Path = "config/default.json") -> AppConfig:
             bootstrap_from_self_detections=bool(state_data["bootstrap_from_self_detections"]),
             min_self_cards_to_start=int(state_data.get("min_self_cards_to_start", 1)),
             bootstrap_stable_frames=int(state_data.get("bootstrap_stable_frames", 1)),
+            live_self_stable_frames=int(state_data.get("live_self_stable_frames", 2)),
         ),
         ui=UiConfig(
             overlay_offset_x=int(ui_data["overlay_offset_x"]),
